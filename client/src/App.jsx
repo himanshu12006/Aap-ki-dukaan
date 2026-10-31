@@ -88,6 +88,9 @@ import RequirementsListPage from '@/pages/requirements/RequirementsListPage';
 import RequirementCreatePage from '@/pages/requirements/RequirementCreatePage';
 import RequirementDetailPage from '@/pages/requirements/RequirementDetailPage';
 
+// ── HIM-09: Supplier Catalogue Page ──────────────────────────────────────────
+import SupplierCataloguePage from '@/pages/suppliers/SupplierCataloguePage';
+
 // ── Role Landing Destinations ─────────────────────────────────────────────────
 export function getRoleHome(role) {
   switch (role) {
@@ -364,14 +367,7 @@ export function AppRoutes() {
             title="Supplier Catalogue"
             subtitle="Verified regional wholesalers, MOQ tiers and catalogue pricing"
           >
-            <FeaturePlaceholder
-              title="Supplier Catalogue & Offers"
-              description="Direct verified wholesaler directory with wholesale MOQ thresholds, quantity price breaks, tier progression rules, and fulfillment SLAs across regional micro-distribution hubs."
-              wave="Wave 3 (HIM-09)"
-              owner="Himanshu"
-              roles={['SHOP_OWNER']}
-              icon={Store}
-            />
+            <SupplierCataloguePage />
           </ProtectedShellRoute>
         }
       />

@@ -37,6 +37,44 @@ vi.mock('@/context/NotificationContext', () => ({
 }));
 
 // Mock requirements API so RequirementsListPage doesn't hit the network
+
+vi.mock('@/api/suppliers.api', () => ({
+  searchOffers: vi.fn().mockResolvedValue({ data: { offers: [] } }),
+  compareOffers: vi.fn(),
+  listSuppliers: vi.fn().mockResolvedValue({ data: { suppliers: [] } }),
+  getSupplierById: vi.fn(),
+  searchProducts: vi.fn().mockResolvedValue({ data: { products: [] } }),
+  CATEGORY_OPTIONS: [
+    { value: 'ALL', label: 'All Categories' },
+    { value: 'PACKAGING', label: 'Packaging Materials' },
+  ],
+  DELIVERY_AREAS: [
+    { value: 'ALL', label: 'All Delivery Areas' },
+    { value: 'DELHI_NCR', label: 'Delhi NCR' },
+  ],
+  SORT_OPTIONS: {
+    LOWEST_LANDED_COST: 'LOWEST_LANDED_COST',
+    LOWEST_MOQ: 'LOWEST_MOQ',
+    FRESHEST_QUOTE: 'FRESHEST_QUOTE',
+  },
+  SORT_LABELS: [
+    { value: 'LOWEST_LANDED_COST', label: 'Lowest Landed Cost' },
+  ],
+  MOQ_FILTER_OPTIONS: [
+    { value: 'ALL', label: 'Any Wholesale MOQ' },
+  ],
+  PROVENANCE_DISPLAY: {
+    SEEDED_DEMO: { label: 'DEMO SAMPLE DATA', variant: 'provenance' },
+    SUPPLIER_SUBMITTED: { label: 'SUPPLIER SUBMITTED', variant: 'pool' },
+    VERIFIED_LIVE: { label: 'VERIFIED LIVE', variant: 'success' },
+    EXTERNAL_API: { label: 'EXTERNAL API', variant: 'outline' },
+  },
+  getApiErrorMessage: vi.fn((err, fallback) => err?.message || fallback || 'Error'),
+  isOfferExpired: vi.fn(() => false),
+  resolveOfferProvenance: vi.fn(() => ({ label: 'VERIFIED LIVE', variant: 'success', isVerified: true })),
+  calculateOfferLandedCost: vi.fn(() => ({ unitPriceMinor: 1000, landedCostMinor: 1000, isShippingKnown: true })),
+}));
+
 vi.mock('@/api/requirements.api', () => ({
   REQUIREMENT_STATUS: {
     DRAFT: 'DRAFT',
@@ -73,6 +111,7 @@ vi.mock('@/api/requirements.api', () => ({
 import { useAuth, useOptionalAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
 import * as requirementsApi from '@/api/requirements.api';
+import * as suppliersApi from '@/api/suppliers.api';
 import App, { AppRoutes, getRoleHome } from '@/App';
 
 // ── Test User Personas ────────────────────────────────────────────────────────
@@ -408,15 +447,21 @@ describe('SUJ-10: Application Routing & Provider Integration', () => {
       expect(screen.getByRole('navigation')).toBeInTheDocument();
     });
 
-    it('renders /suppliers inside AppShellLayout', () => {
+    it('renders /suppliers inside AppShellLayout', async () => {
+      suppliersApi.searchOffers.mockResolvedValueOnce({
+        data: { offers: [] },
+      });
+
       render(
         <MemoryRouter initialEntries={['/suppliers']}>
           <AppRoutes />
         </MemoryRouter>
       );
 
-      expect(screen.getByText('Supplier Catalogue & Offers')).toBeInTheDocument();
-      expect(screen.getByText('Wave 3 (HIM-09)')).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByTestId('supplier-catalogue-page')).toBeInTheDocument()
+      );
+      expect(screen.getByRole('navigation')).toBeInTheDocument();
     });
 
     it('renders /group-buys inside AppShellLayout', () => {
