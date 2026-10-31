@@ -86,6 +86,7 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 // ── HIM-07: Requirement Intake Pages ─────────────────────────────────────────
 import RequirementsListPage from '@/pages/requirements/RequirementsListPage';
 import RequirementCreatePage from '@/pages/requirements/RequirementCreatePage';
+import RequirementDetailPage from '@/pages/requirements/RequirementDetailPage';
 
 // ── Role Landing Destinations ─────────────────────────────────────────────────
 export function getRoleHome(role) {
@@ -338,6 +339,19 @@ export function AppRoutes() {
             subtitle="Submit a new purchasing requirement via AI, upload or form"
           >
             <RequirementCreatePage />
+          </ProtectedShellRoute>
+        }
+      />
+
+      <Route
+        path="/requirements/:requirementId"
+        element={
+          <ProtectedShellRoute
+            allowedRoles={['SHOP_OWNER']}
+            title="Requirement Details"
+            subtitle="AI extraction review, attribute confirmation and supplier matching"
+          >
+            <RequirementDetailPage />
           </ProtectedShellRoute>
         }
       />

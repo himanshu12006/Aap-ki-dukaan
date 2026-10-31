@@ -154,6 +154,52 @@ export async function updateRequirement(requirementId, updates) {
   return axiosClient.patch(`/requirements/${requirementId}`, updates);
 }
 
+// ─── Confirm Requirement (Rule BR-001) ────────────────────────────────────────
+/**
+ * PATCH /api/requirements/:id
+ *
+ * Confirms requirement with buyer-reviewed confirmedFields.
+ * Backend enforces Rule BR-001 (productName, category, requestedQuantity, quantityUnit, deliveryArea).
+ *
+ * @param {string} requirementId
+ * @param {object} confirmedFields
+ * @returns {Promise<{data: {statusCode: number, data: object, message: string}}>}
+ */
+export async function confirmRequirement(requirementId, confirmedFields) {
+  return updateRequirement(requirementId, {
+    status: REQUIREMENT_STATUS.CONFIRMED,
+    confirmedFields,
+  });
+}
+
+// ─── Reject Requirement ───────────────────────────────────────────────────────
+/**
+ * PATCH /api/requirements/:id
+ *
+ * Rejects requirement with explicit user confirmation.
+ *
+ * @param {string} requirementId
+ * @returns {Promise<{data: {statusCode: number, data: object, message: string}}>}
+ */
+export async function rejectRequirement(requirementId) {
+  return updateRequirement(requirementId, {
+    status: REQUIREMENT_STATUS.REJECTED,
+  });
+}
+
+// ─── Get Candidate Matching Offers (SAH-06) ───────────────────────────────────
+/**
+ * GET /api/requirements/:id/matches
+ *
+ * Fetches qualified and evaluated wholesaler supplier offers for a CONFIRMED requirement.
+ *
+ * @param {string} requirementId
+ * @returns {Promise<{data: {statusCode: number, data: {qualifiedMatches: object[], filteredOutOffers: object[], totalEvaluated: number, totalQualified: number}}}>}
+ */
+export async function getRequirementMatches(requirementId) {
+  return axiosClient.get(`/requirements/${requirementId}/matches`);
+}
+
 // ─── Upload Document ──────────────────────────────────────────────────────────
 /**
  * POST /api/uploads

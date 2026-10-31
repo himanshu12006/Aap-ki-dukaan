@@ -53,6 +53,9 @@ vi.mock('@/api/requirements.api', () => ({
   importRequirementsFromCsv: vi.fn(),
   validateUploadFile: vi.fn(),
   getApiErrorMessage: vi.fn((err, fallback) => err?.message || fallback || 'Error'),
+  confirmRequirement: vi.fn(),
+  rejectRequirement: vi.fn(),
+  getRequirementMatches: vi.fn(),
 }));
 
 // Expose mock functions for per-test control
@@ -61,6 +64,7 @@ import * as requirementsApi from '@/api/requirements.api';
 // ── Component imports ────────────────────────────────────────────────────────
 import RequirementsListPage from '@/pages/requirements/RequirementsListPage';
 import RequirementCreatePage from '@/pages/requirements/RequirementCreatePage';
+import RequirementDetailPage from '@/pages/requirements/RequirementDetailPage';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -177,6 +181,18 @@ describe('requirements.api — API functions exist and are callable', () => {
 
   it('createRequirementFromUpload is a function', () => {
     expect(typeof requirementsApi.createRequirementFromUpload).toBe('function');
+  });
+
+  it('confirmRequirement is a function', () => {
+    expect(typeof requirementsApi.confirmRequirement).toBe('function');
+  });
+
+  it('rejectRequirement is a function', () => {
+    expect(typeof requirementsApi.rejectRequirement).toBe('function');
+  });
+
+  it('getRequirementMatches is a function', () => {
+    expect(typeof requirementsApi.getRequirementMatches).toBe('function');
   });
 
   it('uploadDocument is a function', () => {
@@ -328,6 +344,30 @@ describe('RequirementsListPage — populated list', () => {
     renderWithRouter(<RequirementsListPage />);
     await waitFor(() =>
       expect(screen.getByTestId('create-requirement-button')).toBeInTheDocument()
+    );
+  });
+
+  it('navigates to requirement detail page when a requirement row is clicked', async () => {
+    render(
+      <MemoryRouter initialEntries={['/requirements']}>
+        <Routes>
+          <Route path="/requirements" element={<RequirementsListPage />} />
+          <Route
+            path="/requirements/:requirementId"
+            element={<div data-testid="detail-page-target">Requirement Detail Page</div>}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('requirement-item-r1')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('requirement-item-r1'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('detail-page-target')).toBeInTheDocument()
     );
   });
 });
@@ -1123,5 +1163,616 @@ describe('RequirementCreatePage — CSV Import tab', () => {
     expect(requirementsApi.importRequirementsFromCsv).toHaveBeenCalledTimes(1);
 
     act(() => resolve({ data: { created: 0, failed: 0, requirements: [] } }));
+  });
+});
+
+// =============================================================================
+// SECTION 7 — RequirementDetailPage (HIM-08)
+// =============================================================================
+
+function makeDetailedRequirement(overrides = {}) {
+  return {
+    _id: 'req-detail-123',
+    title: '500ml Glass Bottles for Cold Brew',
+    productName: '500ml Glass Bottles',
+    category: 'PACKAGING',
+    status: 'NEEDS_REVIEW',
+    source: 'DOCUMENT_UPLOAD',
+    originalDescription: 'Need 1000 units of 500ml glass bottles for cold brew coffee in Indiranagar',
+    confidenceScore: 0.88,
+    extractionNotes: 'Live Gemini extraction from specs-sheet.pdf',
+    uncertainFields: ['deliveryArea'],
+    extractedFields: {
+      productName: '500ml Glass Bottles',
+      category: 'PACKAGING',
+      requestedQuantity: 1000,
+      quantityUnit: 'UNIT',
+      deliveryArea: 'INDIRANAGAR',
+      packSize: '500ml',
+      material: 'Glass',
+      capacityOrSize: '500ml',
+      foodSafeRequired: true,
+      brandConstraint: 'Standard Pack',
+      requiredBy: '2026-11-20',
+      isDemoExtraction: false,
+    },
+    confirmedFields: {
+      productName: '500ml Glass Bottles',
+      category: 'PACKAGING',
+      requestedQuantity: 1000,
+      quantityUnit: 'UNIT',
+      deliveryArea: 'INDIRANAGAR',
+      packSize: '500ml',
+      material: 'Glass',
+      capacityOrSize: '500ml',
+      foodSafeRequired: true,
+      brandConstraint: 'Standard Pack',
+      requiredBy: '2026-11-20',
+      additionalSpecifications: {
+        notes: 'Amber glass preferred',
+      },
+    },
+    uploadedDocumentId: {
+      _id: 'doc-abc-123',
+      originalFilename: 'specs-sheet.pdf',
+      sizeBytes: 2048,
+      mimeType: 'application/pdf',
+    },
+    createdAt: '2026-10-31T08:00:00.000Z',
+    updatedAt: '2026-10-31T08:30:00.000Z',
+    ...overrides,
+  };
+}
+
+function makeMockMatchesPayload(overrides = {}) {
+  return {
+    requirementId: 'req-detail-123',
+    evaluatedAt: '2026-10-31T09:00:00.000Z',
+    totalQualified: 2,
+    qualifiedMatches: [
+      {
+        offerId: 'off-101',
+        supplierId: 'sup-1',
+        supplierName: 'Apex Containers Ltd',
+        productName: '500ml Glass Bottles',
+        pricePerUnit: 14.5,
+        unit: 'UNITS',
+        availableQuantity: 5000,
+        deliveryAreas: ['Indiranagar', 'Koramangala'],
+        confidenceScore: 0.94,
+        matchReasons: ['Exact category match', 'Meets requested volume', 'Serves Indiranagar'],
+      },
+      {
+        offerId: 'off-102',
+        supplierId: 'sup-2',
+        supplierName: 'Reliable Glassworks',
+        productName: 'Amber Glass Bottles 500ml',
+        pricePerUnit: 15.0,
+        unit: 'UNITS',
+        availableQuantity: 2500,
+        deliveryAreas: ['Indiranagar'],
+        confidenceScore: 0.88,
+        matchReasons: ['Food grade compliant', 'Serves Indiranagar'],
+      },
+    ],
+    filteredOutOffers: [
+      {
+        offerId: 'off-103',
+        supplierName: 'Outstation Plastics',
+        reasons: ['Does not service Indiranagar'],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function renderRequirementDetailPage(requirementId = 'req-detail-123') {
+  return render(
+    <MemoryRouter initialEntries={['/requirements/' + requirementId]}>
+      <Routes>
+        <Route
+          path="/requirements/:requirementId"
+          element={<RequirementDetailPage />}
+        />
+        <Route
+          path="/requirements"
+          element={<div data-testid="requirements-list-page">Requirements List Page</div>}
+        />
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
+describe('RequirementDetailPage — HIM-08 — Loading State', () => {
+  beforeEach(() => {
+    requirementsApi.getRequirement.mockReturnValue(new Promise(() => {}));
+  });
+
+  it('renders loading skeleton while fetching requirement', () => {
+    renderRequirementDetailPage();
+    expect(screen.getByTestId('requirement-detail-skeleton')).toBeInTheDocument();
+  });
+
+  it('does not render detail page content or error while loading', () => {
+    renderRequirementDetailPage();
+    expect(screen.queryByTestId('requirement-detail-page')).toBeNull();
+    expect(screen.queryByTestId('requirement-detail-error')).toBeNull();
+  });
+});
+
+describe('RequirementDetailPage — HIM-08 — Error & Missing State', () => {
+  beforeEach(() => {
+    requirementsApi.getRequirement.mockRejectedValue(new Error('Requirement not found (404)'));
+    requirementsApi.getApiErrorMessage.mockImplementation((err, fallback) => err?.message || fallback || 'Error');
+  });
+
+  it('renders error alert when requirement fetch fails', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('requirement-detail-error')).toBeInTheDocument()
+    );
+    expect(screen.getByText(/Requirement not found \(404\)/i)).toBeInTheDocument();
+  });
+
+  it('allows navigating back to requirements list on error', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('requirement-detail-error')).toBeInTheDocument()
+    );
+
+    const backBtn = screen.getByRole('link', { name: /Back to Requirements/i });
+    expect(backBtn).toBeInTheDocument();
+    fireEvent.click(backBtn);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('requirements-list-page')).toBeInTheDocument()
+    );
+  });
+});
+
+describe('RequirementDetailPage — HIM-08 — Provenance, Badges & AI Review', () => {
+  beforeEach(() => {
+    requirementsApi.getRequirement.mockResolvedValue({
+      data: makeDetailedRequirement(),
+    });
+  });
+
+  it('renders requirement title, ID, status badge, and source badge', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('requirement-detail-page')).toBeInTheDocument()
+    );
+
+    expect(screen.getByTestId('requirement-title')).toHaveTextContent('500ml Glass Bottles');
+    expect(screen.getByTestId('status-badge')).toHaveTextContent('Needs Review');
+    expect(screen.getByText('req-detail-123')).toBeInTheDocument();
+    expect(screen.getByText(/DOCUMENT_UPLOAD/i)).toBeInTheDocument();
+  });
+
+  it('renders confidence score badge when confidenceScore is present', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('confidence-badge')).toBeInTheDocument()
+    );
+    expect(screen.getByTestId('confidence-badge')).toHaveTextContent('88% Confidence');
+  });
+
+  it('renders provenance badge with ingestion trace', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('provenance-badge')).toBeInTheDocument()
+    );
+    expect(screen.getByTestId('provenance-badge')).toHaveTextContent('Live Claude/Gemini AI');
+    expect(screen.getByText('specs-sheet.pdf')).toBeInTheDocument();
+  });
+
+  it('displays uncertain fields alert and uncertain badge for flagged fields', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('uncertain-fields-banner')).toBeInTheDocument()
+    );
+    expect(screen.getByText(/Buyer Review Required/i)).toBeInTheDocument();
+    expect(screen.getByTestId('uncertain-badge-deliveryArea')).toBeInTheDocument();
+  });
+
+  it('renders both AI-extracted section and user-confirmed section distinctly', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() => {
+      expect(screen.getByTestId('ai-extracted-section')).toBeInTheDocument();
+      expect(screen.getByTestId('user-confirmed-section')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/AI-Extracted Fields/i)).toBeInTheDocument();
+    expect(screen.getByText(/User-Confirmed Specifications/i)).toBeInTheDocument();
+  });
+});
+
+describe('RequirementDetailPage — HIM-08 — Form Editing', () => {
+  beforeEach(() => {
+    requirementsApi.getRequirement.mockResolvedValue({
+      data: makeDetailedRequirement(),
+    });
+  });
+
+  it('pre-populates form inputs with current confirmed fields', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('input-product-name')).toBeInTheDocument()
+    );
+
+    expect(screen.getByTestId('input-product-name')).toHaveValue('500ml Glass Bottles');
+    expect(screen.getByTestId('select-category')).toHaveValue('PACKAGING');
+    expect(screen.getByTestId('input-quantity')).toHaveValue(1000);
+    expect(screen.getByTestId('select-unit')).toHaveValue('UNIT');
+    expect(screen.getByTestId('input-delivery-area')).toHaveValue('INDIRANAGAR');
+    expect(screen.getByTestId('input-pack-size')).toHaveValue('500ml');
+    expect(screen.getByTestId('input-material')).toHaveValue('Glass');
+    expect(screen.getByTestId('input-capacity')).toHaveValue('500ml');
+    expect(screen.getByTestId('select-food-safe')).toHaveValue('true');
+    expect(screen.getByTestId('input-brand')).toHaveValue('Standard Pack');
+  });
+
+  it('updates form state when user modifies specifications', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('input-product-name')).toBeInTheDocument()
+    );
+
+    fireEvent.change(screen.getByTestId('input-product-name'), {
+      target: { value: 'Premium Glass Bottles 500ml' },
+    });
+    expect(screen.getByTestId('input-product-name')).toHaveValue('Premium Glass Bottles 500ml');
+
+    fireEvent.change(screen.getByTestId('input-quantity'), {
+      target: { value: '2500' },
+    });
+    expect(screen.getByTestId('input-quantity')).toHaveValue(2500);
+
+    fireEvent.change(screen.getByTestId('input-delivery-area'), {
+      target: { value: 'Koramangala' },
+    });
+    expect(screen.getByTestId('input-delivery-area')).toHaveValue('Koramangala');
+  });
+});
+
+describe('RequirementDetailPage — HIM-08 — Rule BR-001 Validation', () => {
+  beforeEach(() => {
+    requirementsApi.getRequirement.mockResolvedValue({
+      data: makeDetailedRequirement(),
+    });
+  });
+
+  it('blocks confirmation when product name is empty', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('input-product-name')).toBeInTheDocument()
+    );
+
+    fireEvent.change(screen.getByTestId('input-product-name'), {
+      target: { value: '' },
+    });
+
+    fireEvent.click(screen.getByTestId('confirm-requirement-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('action-error-banner')).toBeInTheDocument()
+    );
+    expect(screen.getByText(/Rule BR-001 Validation Failed/i)).toBeInTheDocument();
+    expect(requirementsApi.confirmRequirement).not.toHaveBeenCalled();
+  });
+
+  it('blocks confirmation when delivery area is empty', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('input-delivery-area')).toBeInTheDocument()
+    );
+
+    fireEvent.change(screen.getByTestId('input-delivery-area'), {
+      target: { value: '' },
+    });
+
+    fireEvent.click(screen.getByTestId('confirm-requirement-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('action-error-banner')).toBeInTheDocument()
+    );
+    expect(screen.getByText(/Rule BR-001 Validation Failed/i)).toBeInTheDocument();
+    expect(requirementsApi.confirmRequirement).not.toHaveBeenCalled();
+  });
+
+  it('blocks confirmation when requested quantity is zero or invalid', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('input-quantity')).toBeInTheDocument()
+    );
+
+    fireEvent.change(screen.getByTestId('input-quantity'), {
+      target: { value: '0' },
+    });
+
+    fireEvent.click(screen.getByTestId('confirm-requirement-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('action-error-banner')).toBeInTheDocument()
+    );
+    expect(screen.getByText(/Rule BR-001 Validation Failed/i)).toBeInTheDocument();
+    expect(requirementsApi.confirmRequirement).not.toHaveBeenCalled();
+  });
+});
+
+describe('RequirementDetailPage — HIM-08 — Actions: Save Draft', () => {
+  beforeEach(() => {
+    requirementsApi.getRequirement.mockResolvedValue({
+      data: makeDetailedRequirement(),
+    });
+    requirementsApi.updateRequirement.mockResolvedValue({
+      data: makeDetailedRequirement({ title: 'Updated Glass Bottles' }),
+    });
+  });
+
+  it('calls updateRequirement with modified fields and shows success banner', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('save-draft-button')).toBeInTheDocument()
+    );
+
+    fireEvent.change(screen.getByTestId('input-brand'), {
+      target: { value: 'EcoGlass Co' },
+    });
+
+    fireEvent.click(screen.getByTestId('save-draft-button'));
+
+    await waitFor(() =>
+      expect(requirementsApi.updateRequirement).toHaveBeenCalledWith(
+        'req-detail-123',
+        expect.objectContaining({
+          confirmedFields: expect.objectContaining({
+            brandConstraint: 'EcoGlass Co',
+          }),
+        })
+      )
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('action-success-banner')).toBeInTheDocument()
+    );
+    expect(screen.getByText(/specifications saved successfully as draft/i)).toBeInTheDocument();
+  });
+
+  it('shows error banner when updateRequirement fails', async () => {
+    requirementsApi.updateRequirement.mockRejectedValueOnce(new Error('Network error on save'));
+    requirementsApi.getApiErrorMessage.mockImplementation((err, fallback) => err?.message || fallback || 'Error');
+
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('save-draft-button')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('save-draft-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('action-error-banner')).toBeInTheDocument()
+    );
+    expect(screen.getByText(/Network error on save/i)).toBeInTheDocument();
+  });
+});
+
+describe('RequirementDetailPage — HIM-08 — Actions: Confirm Requirement', () => {
+  beforeEach(() => {
+    requirementsApi.getRequirement.mockResolvedValue({
+      data: makeDetailedRequirement(),
+    });
+    requirementsApi.confirmRequirement.mockResolvedValue({
+      data: makeDetailedRequirement({ status: 'CONFIRMED' }),
+    });
+    requirementsApi.getRequirementMatches.mockResolvedValue({
+      data: makeMockMatchesPayload(),
+    });
+  });
+
+  it('calls confirmRequirement with valid fields and updates to CONFIRMED status', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('confirm-requirement-button')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('confirm-requirement-button'));
+
+    await waitFor(() =>
+      expect(requirementsApi.confirmRequirement).toHaveBeenCalledWith(
+        'req-detail-123',
+        expect.objectContaining({
+          productName: '500ml Glass Bottles',
+          category: 'PACKAGING',
+          requestedQuantity: 1000,
+          quantityUnit: 'UNIT',
+          deliveryArea: 'INDIRANAGAR',
+        })
+      )
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('action-success-banner')).toBeInTheDocument()
+    );
+    expect(screen.getByText(/Requirement confirmed successfully! Rule BR-001 validated/i)).toBeInTheDocument();
+  });
+
+  it('shows error banner when confirmRequirement API rejects with error', async () => {
+    requirementsApi.confirmRequirement.mockRejectedValueOnce(
+      new Error('Rule BR-001 violation from backend')
+    );
+    requirementsApi.getApiErrorMessage.mockImplementation((err, fallback) => err?.message || fallback || 'Error');
+
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('confirm-requirement-button')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('confirm-requirement-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('action-error-banner')).toBeInTheDocument()
+    );
+    expect(screen.getByText(/Rule BR-001 violation from backend/i)).toBeInTheDocument();
+  });
+});
+
+describe('RequirementDetailPage — HIM-08 — Actions: Reject Requirement', () => {
+  beforeEach(() => {
+    requirementsApi.getRequirement.mockResolvedValue({
+      data: makeDetailedRequirement(),
+    });
+    requirementsApi.rejectRequirement.mockResolvedValue({
+      data: makeDetailedRequirement({ status: 'REJECTED' }),
+    });
+  });
+
+  it('opens confirmation dialog on reject click and cancels cleanly', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('reject-dialog-trigger')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('reject-dialog-trigger'));
+
+    expect(screen.getByTestId('reject-modal')).toBeInTheDocument();
+    expect(screen.getByText(/Are you sure you want to reject this requirement/i)).toBeInTheDocument();
+
+    const cancelBtn = screen.getByRole('button', { name: /Cancel/i });
+    fireEvent.click(cancelBtn);
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('reject-modal')).toBeNull()
+    );
+    expect(requirementsApi.rejectRequirement).not.toHaveBeenCalled();
+  });
+
+  it('calls rejectRequirement API when confirming rejection in dialog', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('reject-dialog-trigger')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('reject-dialog-trigger'));
+
+    expect(screen.getByTestId('reject-modal')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('confirm-reject-button'));
+
+    await waitFor(() =>
+      expect(requirementsApi.rejectRequirement).toHaveBeenCalledWith('req-detail-123')
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('action-success-banner')).toBeInTheDocument()
+    );
+    expect(screen.getByText(/rejected and marked as inactive/i)).toBeInTheDocument();
+  });
+});
+
+describe('RequirementDetailPage — HIM-08 — Failed Extraction Fallback', () => {
+  beforeEach(() => {
+    requirementsApi.getRequirement.mockResolvedValue({
+      data: makeDetailedRequirement({
+        status: 'FAILED_EXTRACTION',
+        rawInput: 'Corrupt scanned receipt image',
+        confidenceScore: 0.12,
+      }),
+    });
+    requirementsApi.triggerExtraction.mockResolvedValue({
+      data: { status: 'PROCESSING' },
+    });
+  });
+
+  it('displays failed extraction alert with manual editing notice', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('failed-extraction-alert')).toBeInTheDocument()
+    );
+
+    expect(screen.getByText(/AI Attribute Extraction Could Not Be Completed/i)).toBeInTheDocument();
+    expect(screen.getByTestId('retry-extraction-button')).toBeInTheDocument();
+  });
+
+  it('calls triggerExtraction when Retry AI Extraction button is clicked', async () => {
+    renderRequirementDetailPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('retry-extraction-button')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('retry-extraction-button'));
+
+    await waitFor(() =>
+      expect(requirementsApi.triggerExtraction).toHaveBeenCalledWith('req-detail-123')
+    );
+  });
+});
+
+describe('RequirementDetailPage — HIM-08 — Compatible Supplier Offers (Confirmed Requirements)', () => {
+  it('automatically fetches and displays qualified matches when requirement is CONFIRMED', async () => {
+    requirementsApi.getRequirement.mockResolvedValue({
+      data: makeDetailedRequirement({ status: 'CONFIRMED' }),
+    });
+    requirementsApi.getRequirementMatches.mockResolvedValue({
+      data: makeMockMatchesPayload(),
+    });
+
+    renderRequirementDetailPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('compatible-offers-section')).toBeInTheDocument()
+    );
+
+    expect(requirementsApi.getRequirementMatches).toHaveBeenCalledWith('req-detail-123');
+
+    await waitFor(() =>
+      expect(screen.getByTestId('qualified-matches-list')).toBeInTheDocument()
+    );
+
+    expect(screen.getByTestId('matches-count-badge')).toHaveTextContent('2 Qualified Match(es)');
+    expect(screen.getByText(/Apex Containers Ltd/i)).toBeInTheDocument();
+    expect(screen.getByText(/Reliable Glassworks/i)).toBeInTheDocument();
+    expect(screen.getByText(/Exact category match/i)).toBeInTheDocument();
+    expect(screen.getByText(/94% Spec Match/i)).toBeInTheDocument();
+  });
+
+  it('displays no matches notice when qualified matches list is empty', async () => {
+    requirementsApi.getRequirement.mockResolvedValue({
+      data: makeDetailedRequirement({ status: 'CONFIRMED' }),
+    });
+    requirementsApi.getRequirementMatches.mockResolvedValue({
+      data: {
+        requirementId: 'req-detail-123',
+        totalQualified: 0,
+        qualifiedMatches: [],
+        filteredOutOffers: [],
+      },
+    });
+
+    renderRequirementDetailPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('compatible-offers-section')).toBeInTheDocument()
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('no-matches-notice')).toBeInTheDocument()
+    );
+    expect(screen.getByText(/No active supplier offers currently match all criteria/i)).toBeInTheDocument();
+  });
+
+  it('does NOT fetch supplier offers when requirement is in NEEDS_REVIEW or DRAFT status', async () => {
+    requirementsApi.getRequirement.mockResolvedValue({
+      data: makeDetailedRequirement({ status: 'NEEDS_REVIEW' }),
+    });
+
+    renderRequirementDetailPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('requirement-detail-page')).toBeInTheDocument()
+    );
+
+    expect(screen.queryByTestId('compatible-offers-section')).toBeNull();
+    expect(requirementsApi.getRequirementMatches).not.toHaveBeenCalled();
   });
 });

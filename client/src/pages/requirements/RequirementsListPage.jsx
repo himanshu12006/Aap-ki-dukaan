@@ -163,10 +163,27 @@ function RequirementRow({ requirement }) {
       })
     : null;
 
+  const reqId = requirement._id || requirement.id;
+  const handleOpenDetail = () => {
+    if (reqId) {
+      navigate(`/requirements/${reqId}`);
+    }
+  };
+
   return (
     <div
-      className="group flex items-center gap-4 rounded-lg border border-midnight-border bg-midnight-card p-4 hover:border-slate-500 hover:bg-midnight-elevated transition-colors"
+      role="button"
+      tabIndex={0}
+      onClick={handleOpenDetail}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleOpenDetail();
+        }
+      }}
+      className="group flex items-center gap-4 rounded-lg border border-midnight-border bg-midnight-card p-4 hover:border-slate-500 hover:bg-midnight-elevated transition-colors cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-midnight-red"
       aria-label={`Requirement: ${title}`}
+      data-testid={`requirement-item-${reqId}`}
     >
       {/* Source icon */}
       <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-md bg-midnight-surface border border-midnight-border text-midnight-muted">

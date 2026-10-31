@@ -65,10 +65,14 @@ vi.mock('@/api/requirements.api', () => ({
   importRequirementsFromCsv: vi.fn(),
   validateUploadFile: vi.fn(),
   getApiErrorMessage: vi.fn((err, fallback) => err?.message || fallback || 'Error'),
+  confirmRequirement: vi.fn(),
+  rejectRequirement: vi.fn(),
+  getRequirementMatches: vi.fn(),
 }));
 
 import { useAuth, useOptionalAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
+import * as requirementsApi from '@/api/requirements.api';
 import App, { AppRoutes, getRoleHome } from '@/App';
 
 // ── Test User Personas ────────────────────────────────────────────────────────
@@ -377,6 +381,29 @@ describe('SUJ-10: Application Routing & Provider Integration', () => {
       // RequirementsListPage is now the real implementation — wait for page heading
       await waitFor(() =>
         expect(screen.getByRole('heading', { name: /requirements/i })).toBeInTheDocument()
+      );
+      expect(screen.getByRole('navigation')).toBeInTheDocument();
+    });
+
+    it('renders /requirements/:requirementId inside AppShellLayout', async () => {
+      requirementsApi.getRequirement.mockResolvedValueOnce({
+        data: {
+          _id: 'req-test-route-1',
+          title: 'Route Requirement Detail',
+          status: 'DRAFT',
+          source: 'STRUCTURED_FORM',
+          confirmedFields: { productName: 'Test Coffee Beans' },
+        },
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/requirements/req-test-route-1']}>
+          <AppRoutes />
+        </MemoryRouter>
+      );
+
+      await waitFor(() =>
+        expect(screen.getByTestId('requirement-detail-page')).toBeInTheDocument()
       );
       expect(screen.getByRole('navigation')).toBeInTheDocument();
     });
