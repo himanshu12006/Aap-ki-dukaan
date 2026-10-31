@@ -36,6 +36,37 @@ vi.mock('@/context/NotificationContext', () => ({
   NotificationProvider: ({ children }) => <div data-testid="notif-provider">{children}</div>,
 }));
 
+// Mock requirements API so RequirementsListPage doesn't hit the network
+vi.mock('@/api/requirements.api', () => ({
+  REQUIREMENT_STATUS: {
+    DRAFT: 'DRAFT',
+    PROCESSING: 'PROCESSING',
+    NEEDS_REVIEW: 'NEEDS_REVIEW',
+    CONFIRMED: 'CONFIRMED',
+    FAILED_EXTRACTION: 'FAILED_EXTRACTION',
+  },
+  REQUIREMENT_SOURCE: {
+    NATURAL_LANGUAGE: 'NATURAL_LANGUAGE',
+    DOCUMENT_UPLOAD: 'DOCUMENT_UPLOAD',
+    STRUCTURED_FORM: 'STRUCTURED_FORM',
+    CSV_IMPORT: 'CSV_IMPORT',
+  },
+  ALLOWED_UPLOAD_TYPES: ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'],
+  ALLOWED_UPLOAD_EXTENSIONS: ['.pdf', '.png', '.jpg', '.jpeg', '.webp'],
+  MAX_UPLOAD_BYTES: 10 * 1024 * 1024,
+  listRequirements: vi.fn().mockResolvedValue({ data: { requirements: [] } }),
+  getRequirement: vi.fn(),
+  createRequirementFromText: vi.fn(),
+  createRequirementFromForm: vi.fn(),
+  createRequirementFromUpload: vi.fn(),
+  updateRequirement: vi.fn(),
+  uploadDocument: vi.fn(),
+  triggerExtraction: vi.fn(),
+  importRequirementsFromCsv: vi.fn(),
+  validateUploadFile: vi.fn(),
+  getApiErrorMessage: vi.fn((err, fallback) => err?.message || fallback || 'Error'),
+}));
+
 import { useAuth, useOptionalAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
 import App, { AppRoutes, getRoleHome } from '@/App';
@@ -336,15 +367,18 @@ describe('SUJ-10: Application Routing & Provider Integration', () => {
       expect(screen.getByRole('navigation')).toBeInTheDocument();
     });
 
-    it('renders /requirements inside AppShellLayout', () => {
+    it('renders /requirements inside AppShellLayout', async () => {
       render(
         <MemoryRouter initialEntries={['/requirements']}>
           <AppRoutes />
         </MemoryRouter>
       );
 
-      expect(screen.getByText('Requirements Management')).toBeInTheDocument();
-      expect(screen.getByText('Wave 3 (HIM-07 / HIM-08)')).toBeInTheDocument();
+      // RequirementsListPage is now the real implementation — wait for page heading
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { name: /requirements/i })).toBeInTheDocument()
+      );
+      expect(screen.getByRole('navigation')).toBeInTheDocument();
     });
 
     it('renders /suppliers inside AppShellLayout', () => {

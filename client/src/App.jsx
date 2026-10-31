@@ -83,6 +83,10 @@ import RegisterPage from '@/pages/auth/RegisterPage';
 import AppShellLayout from '@/layouts/AppShellLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
+// ── HIM-07: Requirement Intake Pages ─────────────────────────────────────────
+import RequirementsListPage from '@/pages/requirements/RequirementsListPage';
+import RequirementCreatePage from '@/pages/requirements/RequirementCreatePage';
+
 // ── Role Landing Destinations ─────────────────────────────────────────────────
 export function getRoleHome(role) {
   switch (role) {
@@ -311,6 +315,7 @@ export function AppRoutes() {
         }
       />
 
+      {/* ── HIM-07: Requirement Intake ──────────────────────────────────────── */}
       <Route
         path="/requirements"
         element={
@@ -319,14 +324,20 @@ export function AppRoutes() {
             title="Procurement Requirements"
             subtitle="AI-assisted requirement intake and itemization engine"
           >
-            <FeaturePlaceholder
-              title="Requirements Management"
-              description="AI-assisted requirement intake and itemization engine. Submit purchase requirements via plain text or invoice upload, verify extracted SKUs and quantities, and convert directly into collective group-buy pools."
-              wave="Wave 3 (HIM-07 / HIM-08)"
-              owner="Himanshu"
-              roles={['SHOP_OWNER']}
-              icon={FileText}
-            />
+            <RequirementsListPage />
+          </ProtectedShellRoute>
+        }
+      />
+
+      <Route
+        path="/requirements/new"
+        element={
+          <ProtectedShellRoute
+            allowedRoles={['SHOP_OWNER']}
+            title="Create Requirement"
+            subtitle="Submit a new purchasing requirement via AI, upload or form"
+          >
+            <RequirementCreatePage />
           </ProtectedShellRoute>
         }
       />
