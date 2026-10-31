@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Search,
   Filter,
@@ -177,7 +178,17 @@ function OfferCard({
 
           <p className="text-xs text-midnight-muted mt-1 flex items-center gap-1.5" data-testid="offer-supplier-name">
             <Building2 className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-            <span className="font-medium text-slate-300 truncate">{supplierName}</span>
+            {offer.supplierId?._id || typeof offer.supplierId === 'string' ? (
+              <Link
+                to={`/suppliers/${offer.supplierId?._id || offer.supplierId}`}
+                className="font-medium text-slate-300 hover:text-midnight-red hover:underline truncate transition-colors"
+                data-testid={`supplier-link-${offer._id || offer.id}`}
+              >
+                {supplierName}
+              </Link>
+            ) : (
+              <span className="font-medium text-slate-300 truncate">{supplierName}</span>
+            )}
           </p>
 
           {offer.supplierProductDescription && offer.supplierProductDescription !== productName && (

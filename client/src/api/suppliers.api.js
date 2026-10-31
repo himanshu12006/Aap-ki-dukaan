@@ -198,6 +198,77 @@ export async function searchProducts(params = {}) {
   return axiosClient.get('/products/search', { params });
 }
 
+// ─── Task SAH-09: Quote Request API ──────────────────────────────────────────
+
+/**
+ * Valid quote request reasons corresponding to backend Quote.model.js QUOTE_REQUEST_REASONS enum.
+ */
+export const QUOTE_REQUEST_REASONS = [
+  { value: 'NO_COMPATIBLE_OFFER', label: 'No Compatible Offer Available' },
+  { value: 'STALE_QUOTE', label: 'Stale / Expired Quote (Request Refresh)' },
+  { value: 'CUSTOM_SPECS', label: 'Custom Specifications or Packaging' },
+  { value: 'VOLUME_DISCOUNT', label: 'Volume Discount for Larger Order' },
+  { value: 'UNDER_MOQ_POOL', label: 'Under-MOQ Fulfillment Request' },
+  { value: 'OTHER', label: 'Other Commercial Requirement' },
+];
+
+/**
+ * Requests a custom or revised quotation from a supplier.
+ *
+ * POST /api/quotes/requests
+ *
+ * @param {object} payload
+ * @param {string} payload.supplierId - Valid Supplier ObjectId (required)
+ * @param {string} payload.productId - Valid Product ObjectId (required)
+ * @param {string} [payload.supplierOfferId] - Referenced SupplierOffer ObjectId (optional)
+ * @param {string} [payload.requirementId] - Referenced Requirement ObjectId (optional)
+ * @param {string} [payload.poolId] - Referenced GroupBuyPool ObjectId (optional)
+ * @param {number} payload.requestedQuantity - Positive integer quantity (required)
+ * @param {string} payload.deliveryArea - Target delivery region (required)
+ * @param {string|Date} [payload.targetDeliveryDate] - Desired delivery date (optional)
+ * @param {string} [payload.requestReason='NO_COMPATIBLE_OFFER'] - Reason enum (optional)
+ * @param {string} [payload.requestNotes=''] - Additional instructions for supplier (optional)
+ * @param {string} [payload.currency='INR'] - Currency code
+ * @returns {Promise<{data: {statusCode: number, data: object, message: string}}>}
+ */
+export async function requestQuote(payload) {
+  return axiosClient.post('/quotes/requests', payload);
+}
+
+/**
+ * Fetches active wholesale offers for a specific supplier.
+ *
+ * Queries /api/offers/search with includeExpired: true and filters by supplierId.
+ *
+ * @param {string} supplierId
+ * @param {object} [options={}]
+ * @returns {Promise<{offers: object[], total: number}>}
+ */
+export async function getOffersBySupplier(supplierId, options = {}) {
+  const res = await searchOffers({
+    includeExpired: options.includeExpired !== undefined ? options.includeExpired : true,
+    limit: options.limit || 100,
+    ...options,
+  });
+
+  const payload = res?.data?.data !== undefined ? res.data.data : res?.data;
+  const rawOffers = Array.isArray(payload?.offers)
+    ? payload.offers
+    : Array.isArray(payload)
+    ? payload
+    : [];
+
+  const filtered = rawOffers.filter((o) => {
+    const sId = o.supplierId?._id || o.supplierId?.id || o.supplierId;
+    return String(sId) === String(supplierId);
+  });
+
+  return {
+    offers: filtered,
+    total: filtered.length,
+  };
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**

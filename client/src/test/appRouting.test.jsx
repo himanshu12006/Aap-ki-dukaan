@@ -43,7 +43,17 @@ vi.mock('@/api/suppliers.api', () => ({
   compareOffers: vi.fn(),
   listSuppliers: vi.fn().mockResolvedValue({ data: { suppliers: [] } }),
   getSupplierById: vi.fn(),
+  getOffersBySupplier: vi.fn().mockResolvedValue({ offers: [] }),
+  requestQuote: vi.fn(),
   searchProducts: vi.fn().mockResolvedValue({ data: { products: [] } }),
+  QUOTE_REQUEST_REASONS: [
+    { value: 'NO_COMPATIBLE_OFFER', label: 'No Compatible Offer Available' },
+    { value: 'STALE_QUOTE', label: 'Stale / Expired Quote (Request Refresh)' },
+    { value: 'CUSTOM_SPECS', label: 'Custom Specifications or Packaging' },
+    { value: 'VOLUME_DISCOUNT', label: 'Volume Discount for Larger Order' },
+    { value: 'UNDER_MOQ_POOL', label: 'Under-MOQ Fulfillment Request' },
+    { value: 'OTHER', label: 'Other Commercial Requirement' },
+  ],
   CATEGORY_OPTIONS: [
     { value: 'ALL', label: 'All Categories' },
     { value: 'PACKAGING', label: 'Packaging Materials' },
@@ -461,6 +471,46 @@ describe('SUJ-10: Application Routing & Provider Integration', () => {
       await waitFor(() =>
         expect(screen.getByTestId('supplier-catalogue-page')).toBeInTheDocument()
       );
+      expect(screen.getByRole('navigation')).toBeInTheDocument();
+    });
+
+    it('renders /suppliers/:supplierId inside AppShellLayout', async () => {
+      suppliersApi.getSupplierById.mockResolvedValueOnce({
+        data: {
+          data: {
+            _id: 'sup-route-test-1',
+            name: 'Apex Packaging Industries',
+            serviceAreas: ['DELHI_NCR'],
+            verificationStatus: 'VERIFIED',
+            dataSourceType: 'VERIFIED_LIVE',
+          },
+        },
+      });
+      suppliersApi.getOffersBySupplier.mockResolvedValueOnce({
+        offers: [],
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/suppliers/sup-route-test-1']}>
+          <AppRoutes />
+        </MemoryRouter>
+      );
+
+      await waitFor(() =>
+        expect(screen.getByTestId('supplier-detail-page')).toBeInTheDocument()
+      );
+      expect(screen.getByRole('navigation')).toBeInTheDocument();
+    });
+
+    it('renders /group-buys/create inside AppShellLayout', () => {
+      render(
+        <MemoryRouter initialEntries={['/group-buys/create?offerId=off-123']}>
+          <AppRoutes />
+        </MemoryRouter>
+      );
+
+      expect(screen.getAllByText('Create Group-Buy Pool').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('Wave 4 (SUJ-02)')).toBeInTheDocument();
       expect(screen.getByRole('navigation')).toBeInTheDocument();
     });
 
